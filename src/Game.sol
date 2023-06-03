@@ -1,23 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import "openzeppelin-contracts/contracts/access/Ownable.sol";
 
-contract Game is ERC20 {
+contract Game is Ownable {
     uint256 public constant KEEP_PERCENT = 0.05;
+    mapping(address => mapping(uint256 => mapping(string => uint8))) public bets;
 
-    address public owner;
-    mapping(address => uint256) public bets;
-
-    constructor() ERC20("Token", "TKN") {
-        owner = msg.sender;
+    function betIncrease(uint256 amount, string currency) public payable {
+        bets[msg.sender][currency][1] = amount;
     }
 
-    function betIncrease(uint256 amount, string currency) public {
-
+    function betDecrease(uint256 amount, string currency) public payable {
+        bets[msg.sender][currency][0] = amount;
     }
 
-    function betDecrease(uint256 amount, string currency) public {
-
-    }
 }
