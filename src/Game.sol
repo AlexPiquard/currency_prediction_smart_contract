@@ -9,7 +9,7 @@ import "chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 * @notice Game smart contract for currency exchange rate evolution prediction.
 */
 contract Game is Ownable {
-    // @dev Percent of balance for owner of contract (in bps - one hundredth of 1 percentage point)
+    // @dev Percent of balance for owner of the contract (in bps - one hundredth of 1 percentage point)
     uint256 public constant BPS_FOR_OWNER = 500; // 5%
 
     struct Bet {
@@ -27,7 +27,7 @@ contract Game is Ownable {
     }
 
     // @dev Iterable list of currency keys.
-    string[] public currencyKeys = ["BTC", "ETH", "EUR"];
+    string[] private currencyKeys;
     // @dev Associated currencies for each key.
     mapping(string => Currency) private currencies;
     // @dev List of users of this round.
@@ -35,14 +35,9 @@ contract Game is Ownable {
     // @dev Associated bet for each user in this round.
     mapping(address => Bet) private bets;
 
-    constructor() {
-        // @dev Get default data for all supported currencies.
-        initializeCurrencyData("BTC", AggregatorV3Interface(0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43));
-        initializeCurrencyData("ETH", AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306));
-        initializeCurrencyData("EUR", AggregatorV3Interface(0x1a81afB8146aeFfCFc5E50e8479e826E7D55b910));
-    }
+    constructor() Ownable() {}
 
-    function initializeCurrencyData(string memory currencyKey, AggregatorV3Interface dataFeed) private {
+    function addCurrencyFeed(string memory currencyKey, AggregatorV3Interface dataFeed) public onlyOwner {
         (
             uint80 roundID,
             int answer,
@@ -55,6 +50,14 @@ contract Game is Ownable {
         require(updatedAt > 0, "Round not complete");
 
         currencies[currencyKey] = Currency(dataFeed, 0, roundID, 0, answer);
+        currencyKeys.push(currencyKey);
+    }
+
+    function clearCurrencies() public onlyOwner {
+        for (uint256 i = 0; i < currencyKeys.length; ++i) {
+            delete currencies[currencyKeys[i]];
+        }
+        delete currencyKeys;
     }
 
     function updateLatestCurrencyData(string memory currencyKey) private {
@@ -78,12 +81,12 @@ contract Game is Ownable {
         currencies[currencyKey] = currency;
     }
 
-    function betIncrease(uint256 amount, string memory currency) public payable {
-        bet(amount, true, currency);
+    function betIncrease(string memory currency) public payable {
+        bet(msg.value, true, currency);
     }
 
-    function betDecrease(uint256 amount, string memory currency) public payable {
-        bet(amount, false, currency);
+    function betDecrease(string memory currency) public payable {
+        bet(msg.value, false, currency);
     }
 
     function getBetAmount() public view returns (uint256) {
@@ -94,11 +97,18 @@ contract Game is Ownable {
         return bets[msg.sender].currency;
     }
 
-    function getBetEvolution() public view returns (bool) {
+    function getBet() public view returns (bool) {
         return bets[msg.sender].bet;
     }
 
+    function getSupportedCurrencies() public view returns (string[] memory) {
+        return currencyKeys;
+    }
+
     function bet(uint256 amount, bool state, string memory currency) private {
+        require(amount > 0, "cant bet for free");
+        require(address(currencies[currency].dataFeed) != address(0), "unsupported currency");
+
         Bet memory b = bets[msg.sender];
         if (b.amount == 0) {
             b = Bet(currency, state, amount);
@@ -107,6 +117,7 @@ contract Game is Ownable {
             require(b.bet == state, "cant change bet");
             require(keccak256(bytes(b.currency)) == keccak256(bytes(currency)), "cant change currency");
             b.amount += amount;
+            bets[msg.sender] = b;
         }
     }
 
@@ -153,6 +164,8 @@ contract Game is Ownable {
 
         // @dev The rest goes to owner.
         payable(address(owner())).transfer(address(this).balance);
+
+        reset();
     }
 
     // @dev Reset game at end of round, after result.
@@ -162,5 +175,4 @@ contract Game is Ownable {
         }
         delete users;
     }
-
 }
