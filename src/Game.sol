@@ -85,11 +85,11 @@ contract Game is Ownable {
     }
 
     function betIncrease(string memory currency) public payable {
-        bet(msg.value, true, currency);
+        bet(true, currency);
     }
 
     function betDecrease(string memory currency) public payable {
-        bet(msg.value, false, currency);
+        bet(false, currency);
     }
 
     function getBetAmount() public view returns (uint256) {
@@ -108,21 +108,20 @@ contract Game is Ownable {
         return currencyKeys;
     }
 
-    function bet(uint256 amount, bool state, string memory currency) private {
-        require(amount > 0, "cant bet for free");
+    function bet(bool state, string memory currency) private {
+        require(msg.value > 0, "cant bet for free");
         require(address(currencies[currency].dataFeed) != address(0), "unsupported currency");
 
         Bet memory b = bets[msg.sender];
         if (b.amount == 0) {
-            b = Bet(currency, state, amount, block.timestamp);
-            bets[msg.sender] = b;
+            b = Bet(currency, state, msg.value, block.timestamp);
         } else {
             require(b.bet == state, "cant change bet");
             require(keccak256(bytes(b.currency)) == keccak256(bytes(currency)), "cant change currency");
-            b.amount += amount;
+            b.amount += msg.value;
             b.when = block.timestamp;
-            bets[msg.sender] = b;
         }
+        bets[msg.sender] = b;
         users.push(msg.sender);
     }
 

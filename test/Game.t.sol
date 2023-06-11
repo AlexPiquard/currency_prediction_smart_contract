@@ -112,12 +112,11 @@ contract GameTest is Test {
         hoax(user1, amount);
         game.betIncrease{value: amount}('MCK');
 
-        hoax(user1);
+        vm.startPrank(user1);
         assertEq(game.getBetAmount(), amount);
-        hoax(user1);
         assertEq(game.getBetCurrency(), 'MCK');
-        hoax(user1);
         assertEq(game.getBet(), true);
+        vm.stopPrank();
     }
 
     function testResultSameRound() public {
