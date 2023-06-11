@@ -16,6 +16,7 @@ contract Game is Ownable {
         string currency;
         bool bet;
         uint256 amount;
+        uint256 when;
     }
 
     struct Currency {
@@ -24,6 +25,7 @@ contract Game is Ownable {
         uint80 currentRoundID;
         int lastPrice;
         int currentPrice;
+        uint256 updatedAt;
     }
 
     // @dev Iterable list of currency keys.
@@ -49,7 +51,7 @@ contract Game is Ownable {
         // @dev If the round is not complete yet, updatedAt is 0
         require(updatedAt > 0, "Round not complete");
 
-        currencies[currencyKey] = Currency(dataFeed, 0, roundID, 0, answer);
+        currencies[currencyKey] = Currency(dataFeed, 0, roundID, 0, answer, updatedAt);
         currencyKeys.push(currencyKey);
     }
 
@@ -77,6 +79,7 @@ contract Game is Ownable {
         currency.lastPrice = currency.currentPrice;
         currency.currentRoundID = roundID;
         currency.currentPrice = answer;
+        currency.updatedAt = updatedAt;
 
         currencies[currencyKey] = currency;
     }
@@ -111,12 +114,13 @@ contract Game is Ownable {
 
         Bet memory b = bets[msg.sender];
         if (b.amount == 0) {
-            b = Bet(currency, state, amount);
+            b = Bet(currency, state, amount, block.timestamp);
             bets[msg.sender] = b;
         } else {
             require(b.bet == state, "cant change bet");
             require(keccak256(bytes(b.currency)) == keccak256(bytes(currency)), "cant change currency");
             b.amount += amount;
+            b.when = block.timestamp;
             bets[msg.sender] = b;
         }
         users.push(msg.sender);
@@ -139,6 +143,9 @@ contract Game is Ownable {
 
             // @dev If round is still the same for this currency, we do nothing.
             if (currency.lastRoundID == currency.currentRoundID) continue;
+
+            // @dev If bet was done after price update, we do nothing.
+            if (b.when > currency.updatedAt) continue;
 
             // @dev Check if he's wrong.
             if (b.bet != bool(currency.currentPrice > currency.lastPrice)) continue;

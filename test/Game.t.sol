@@ -176,4 +176,16 @@ contract GameTest is Test {
         assertEq(user2.balance, amount2 * balance / (amount + amount2));
         assertEq(owner.balance, amount + amount2 - user1.balance - user2.balance);
     }
+
+    function testResultCheater() public {
+        dataFeed.updateAnswer(800000000000);
+
+        vm.warp(block.timestamp + 1000);
+
+        hoax(user1, 1 ether);
+        game.betIncrease{value: 1 ether}('MCK');
+        game.result();
+
+        assertEq(user1.balance, 0);
+    }
 }
