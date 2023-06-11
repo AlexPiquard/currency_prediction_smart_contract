@@ -9,8 +9,8 @@ import "chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 * @notice Game smart contract for currency exchange rate evolution prediction.
 */
 contract Game is Ownable {
-    // @dev Percent of balance for owner of the contract (in bps - one hundredth of 1 percentage point)
-    uint256 public constant BPS_FOR_OWNER = 500; // 5%
+    // @dev Percent of balance for owner of the contract
+    uint256 public constant PERCENT_FOR_OWNER = 5;
 
     struct Bet {
         string currency;
@@ -119,6 +119,7 @@ contract Game is Ownable {
             b.amount += amount;
             bets[msg.sender] = b;
         }
+        users.push(msg.sender);
     }
 
     // @notice Everyone can generate result, at his own cost.
@@ -140,7 +141,7 @@ contract Game is Ownable {
             if (currency.lastRoundID == currency.currentRoundID) continue;
 
             // @dev Check if he's wrong.
-            if (b.bet != (currency.currentPrice > currency.lastPrice)) continue;
+            if (b.bet != bool(currency.currentPrice > currency.lastPrice)) continue;
 
             winners[i] = users[i];
             winnersBalance += b.amount;
@@ -148,18 +149,21 @@ contract Game is Ownable {
 
         // @dev Get balance and subtract contract percent.
         uint256 balance = address(this).balance;
-        uint256 ownerGain = (balance * BPS_FOR_OWNER) / 10_000;
-        balance -= ownerGain;
-        winnersBalance -= ownerGain;
+        uint256 ownerGain = (balance * PERCENT_FOR_OWNER) / 100;
+
+        if (balance > ownerGain)
+            balance -= ownerGain;
 
         // @dev Give money to winners.
         for (uint256 i = 0; i < winners.length; ++i) {
             if (winners[i] == address(0)) continue;
 
-            Bet memory b = bets[winners[i]];
+            // @dev Check if gain is too low.
+            uint256 gain = (bets[winners[i]].amount*balance)/winnersBalance;
+            if (gain == 0) continue;
 
             // @dev Give percent of balance to user, related to bet amount.
-            payable(address(winners[i])).transfer((b.amount*balance)/winnersBalance);
+            payable(address(winners[i])).transfer(gain);
         }
 
         // @dev The rest goes to owner.
